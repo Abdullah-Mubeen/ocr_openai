@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Form Builder</title>
+  <script src="script.js" defer></script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center p-6">
+  <h1 class="text-3xl font-bold mb-6 text-center">🧠 AI-Powered Form Extractor</h1>
+
+  <!-- Upload Form -->
+  <form id="uploadForm" class="bg-white p-6 rounded shadow-md w-full max-w-xl">
+    <label class="block mb-2 font-semibold">Upload Form Image:</label>
+    <input type="file" name="image" id="imageInput" accept="image/*" required class="mb-4 border p-2 w-full">
+
+    <label class="block mb-2 font-semibold">Form Name:</label>
+    <input type="text" name="form_name" value="auto_form" required class="mb-4 border p-2 w-full">
+
+    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded w-full">
+      Extract & Generate Form
+    </button>
+  </form>
+
+  <!-- Dynamic Form Render -->
+  <div id="formContainer" class="mt-10 w-full max-w-xl hidden bg-white p-6 rounded shadow-md"></div>
+
+  <!-- JSON View -->
+  <div id="jsonOutput" class="mt-4 w-full max-w-xl hidden bg-gray-900 text-white text-sm p-4 rounded shadow-inner overflow-x-auto">
+    <h3 class="font-semibold text-lg mb-2">📝 Extracted JSON Preview</h3>
+    <pre id="jsonData"></pre>
+  </div>
+</body>
+</html>
