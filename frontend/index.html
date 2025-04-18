@@ -4,32 +4,182 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>AI Form Builder</title>
-  <script src="script.js" defer></script>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="style.css">
 </head>
-<body class="bg-gray-100 min-h-screen flex flex-col items-center p-6">
-  <h1 class="text-3xl font-bold mb-6 text-center">🧠 AI-Powered Form Extractor</h1>
+<body class="bg-gray-50 min-h-screen">
+  <div class="container mx-auto px-4 py-8 max-w-5xl">
+    <!-- App Banner -->
+    <div id="appBanner" class="mb-8">
+      <h1 class="text-3xl font-bold mb-2">Form Extractor</h1>
+      <p class="text-white text-opacity-90">Upload a form image and extract data with AI</p>
+    </div>
 
-  <!-- Upload Form -->
-  <form id="uploadForm" class="bg-white p-6 rounded shadow-md w-full max-w-xl">
-    <label class="block mb-2 font-semibold">Upload Form Image:</label>
-    <input type="file" name="image" id="imageInput" accept="image/*" required class="mb-4 border p-2 w-full">
-
-    <label class="block mb-2 font-semibold">Form Name:</label>
-    <input type="text" name="form_name" value="auto_form" required class="mb-4 border p-2 w-full">
-
-    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded w-full">
-      Extract & Generate Form
-    </button>
-  </form>
-
-  <!-- Dynamic Form Render -->
-  <div id="formContainer" class="mt-10 w-full max-w-xl hidden bg-white p-6 rounded shadow-md"></div>
-
-  <!-- JSON View -->
-  <div id="jsonOutput" class="mt-4 w-full max-w-xl hidden bg-gray-900 text-white text-sm p-4 rounded shadow-inner overflow-x-auto">
-    <h3 class="font-semibold text-lg mb-2">📝 Extracted JSON Preview</h3>
-    <pre id="jsonData"></pre>
+    <!-- Main Content -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <!-- Left Column: Upload and Form Preview -->
+      <div class="lg:col-span-2 space-y-6">
+        <!-- Upload Section -->
+        <div class="section-card bg-white p-6">
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="section-header text-xl font-semibold">
+              <i class="fas fa-cloud-upload-alt"></i> Upload Form
+            </h2>
+            <button class="collapse-toggle focus:outline-none text-gray-400 hover:text-gray-600" data-target="upload-body">
+              <i class="fas fa-chevron-down"></i>
+            </button>
+          </div>
+          
+          <div id="upload-body" class="expanded-section">
+            <form id="uploadForm" class="space-y-5">
+              <div class="drag-area" id="dragArea">
+                <input type="file" name="image" id="imageInput" accept="image/*" required class="hidden">
+                <label for="imageInput" class="block cursor-pointer">
+                  <div class="mb-4">
+                    <div class="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-2">
+                      <i class="fas fa-file-image text-2xl text-indigo-500"></i>
+                    </div>
+                    <p class="text-gray-700 font-medium">Drop your form image here</p>
+                    <p class="text-gray-400 text-sm mt-1">or</p>
+                  </div>
+                  <div class="mt-2">
+                    <span class="px-4 py-2 border border-indigo-200 bg-indigo-50 text-indigo-700 rounded-lg font-medium hover:bg-indigo-100 transition">Browse Files</span>
+                  </div>
+                </label>
+                <p class="mt-4 text-xs text-gray-400">Supports: JPG, PNG, PDF</p>
+              </div>
+              
+              <div class="flex items-end space-x-4">
+                <div class="flex-grow">
+                  <label class="block text-sm font-medium text-gray-600 mb-1">Form Name:</label>
+                  <input type="text" name="form_name" value="auto_form" required class="form-input border border-gray-200 rounded-lg px-4 py-2 w-full focus:border-indigo-500 bg-white">
+                </div>
+                <button type="submit" id="extractBtn" class="btn-primary text-white font-medium py-2 px-6 rounded-lg flex items-center">
+                  <i class="fas fa-magic mr-2"></i>
+                  Extract Form
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+        
+        <!-- Image Preview Section -->
+        <div id="imagePreviewSection" class="section-card bg-white p-6 hidden">
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="section-header text-xl font-semibold">
+              <i class="fas fa-image"></i> Image Preview
+            </h2>
+            <button class="collapse-toggle focus:outline-none text-gray-400 hover:text-gray-600" data-target="image-preview-body">
+              <i class="fas fa-chevron-down"></i>
+            </button>
+          </div>
+          
+          <div id="image-preview-body" class="expanded-section">
+            <div class="bg-gray-50 rounded-lg p-2 overflow-hidden">
+              <img id="previewImg" class="w-full object-contain max-h-96 rounded-md" alt="Form preview">
+            </div>
+          </div>
+        </div>
+        
+        <!-- Extracted Form Section -->
+        <div id="extractedFormSection" class="section-card bg-white p-6 hidden">
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="section-header text-xl font-semibold">
+              <i class="fas fa-clipboard-list"></i> Extracted Form
+            </h2>
+            <div class="flex items-center space-x-4">
+              <div class="flex items-center">
+                <span class="text-sm text-gray-600 mr-2">Edit Mode</span>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="editModeInput" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <button class="collapse-toggle focus:outline-none text-gray-400 hover:text-gray-600" data-target="form-body">
+                <i class="fas fa-chevron-down"></i>
+              </button>
+            </div>
+          </div>
+          
+          <div id="form-body" class="expanded-section">
+            <div id="formContainer" class="rounded-lg"></div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Right Column: JSON Output -->
+      <div class="lg:col-span-1 space-y-6">
+        <!-- Status Section -->
+        <div id="statusSection" class="section-card bg-white p-6 hidden">
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="section-header text-xl font-semibold">
+              <i class="fas fa-info-circle"></i> Status
+            </h2>
+            <button class="collapse-toggle focus:outline-none text-gray-400 hover:text-gray-600" data-target="status-body">
+              <i class="fas fa-chevron-down"></i>
+            </button>
+          </div>
+          
+          <div id="status-body" class="expanded-section">
+            <div id="statusContent" class="rounded-lg"></div>
+          </div>
+        </div>
+        
+        <!-- JSON Output Section -->
+        <div id="jsonOutputSection" class="section-card bg-white p-6 hidden">
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="section-header text-xl font-semibold">
+              <i class="fas fa-code"></i> JSON Data
+            </h2>
+            <div class="flex space-x-2">
+              <button id="downloadBtn" class="flex items-center text-sm py-1 px-3 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition">
+                <i class="fas fa-download mr-1"></i> Download
+              </button>
+              <button id="copyJsonBtn" class="flex items-center text-sm py-1 px-3 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition">
+                <i class="fas fa-copy mr-1"></i> Copy
+              </button>
+              <button class="collapse-toggle focus:outline-none text-gray-400 hover:text-gray-600" data-target="json-body">
+                <i class="fas fa-chevron-down"></i>
+              </button>
+            </div>
+          </div>
+          
+          <div id="json-body" class="expanded-section">
+            <div class="json-output">
+              <pre id="jsonData" class="whitespace-pre-wrap"></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
+  
+  <!-- Loading Overlay -->
+  <div id="loadingOverlay" class="fixed inset-0 bg-black bg-opacity-30 backdrop-blur z-50 hidden flex items-center justify-center">
+    <div class="bg-white p-8 rounded-2xl shadow-lg text-center">
+      <div class="relative w-16 h-16 mx-auto">
+        <div class="absolute top-0 left-0 w-full h-full rounded-full border-4 border-indigo-100"></div>
+        <div class="absolute top-0 left-0 w-full h-full rounded-full border-4 border-indigo-500 border-t-transparent animate-spin"></div>
+      </div>
+      <p class="mt-6 text-gray-700 font-medium">Processing form image...</p>
+      <p class="text-gray-400 text-sm mt-1">This may take a moment</p>
+    </div>
+  </div>
+
+  <!-- Notification Toast -->
+  <div id="notificationToast" class="fixed bottom-6 right-6 z-50 hidden">
+    <div class="bg-white rounded-lg shadow-lg p-4 flex items-start">
+      <div class="flex-shrink-0 mr-3">
+        <div id="notificationIcon" class="w-8 h-8 rounded-full flex items-center justify-center"></div>
+      </div>
+      <div>
+        <h3 id="notificationTitle" class="font-medium"></h3>
+        <p id="notificationMessage" class="text-sm text-gray-600 mt-1"></p>
+      </div>
+    </div>
+  </div>
+
+<script src="script.js"></script>
 </body>
 </html>

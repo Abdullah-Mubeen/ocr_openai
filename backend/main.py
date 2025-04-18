@@ -1,127 +1,104 @@
-import os
-import json
-from datetime import datetime
-from typing import Optional, List, Dict, Any
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Body
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
-from utils import encode_image, extract_form_data
+import openai
+import os
+import base64
+from dotenv import load_dotenv
+import json
+import uvicorn
 
-app = FastAPI(title="Form Extractor API")
+# Load environment variables
+load_dotenv()
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# CORS middleware setup
+app = FastAPI()
+
+# Enable CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For development, replace with specific origins in production
+    allow_origins=["*"],  # In production, specify your frontend domain
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Ensure the Data directory exists
-DATA_DIR = "./Data"
-FORMS_DIR = "./Data/Forms"
-os.makedirs(DATA_DIR, exist_ok=True)
-os.makedirs(FORMS_DIR, exist_ok=True)
+def encode_image(raw_image_bytes: bytes) -> str:
+    return base64.b64encode(raw_image_bytes).decode("utf-8")
 
-# Models
-class FormField(BaseModel):
-    type: str
-    label: str
-    key: str
-    options: Optional[List[str]] = None
+def extract_form_data(base64_image: str):
+    full_prompt = """
+You are a form understanding AI. The user has uploaded a scanned image of a form.
 
-class FormTemplate(BaseModel):
-    name: str
-    fields: List[FormField]
-    extractedData: Optional[Dict[str, Any]] = None
+Extract the following:
 
-@app.get("/")
-async def root():
-    return {"message": "Form Extractor API is running", "status": "ok"}
+1. A list of form fields with:
+   - `label`: The human-readable label from the form (e.g., "Full Name").
+   - `key`: A simplified snake_case version of the label (e.g., "full_name").
+   - `type`: One of ["text", "checkbox", "date", "dropdown"] based on the field style or value.
+   - `options` (only if dropdown): list of options.
+   
+2. A dictionary called `extractedData` where the keys match the field keys and the values are extracted from the form.
+
+Return a JSON in the following format:
+{
+  "name": "Generated Form Template Name",
+  "fields": [ ... ],
+  "extractedData": { ... }
+}
+""".strip()
+
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        { "type": "text", "text": full_prompt },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/png;base64,{base64_image}"
+                            }
+                        }
+                    ]
+                }
+            ],
+            max_tokens=1500,
+        )
+
+        raw_output = response["choices"][0]["message"]["content"]
+        cleaned = raw_output.replace("```json", "").replace("```", "").strip()
+
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError:
+            raise ValueError("Could not decode JSON from LLM response")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"OpenAI API error: {str(e)}")
 
 @app.post("/extract")
 async def extract_form(
     image: UploadFile = File(...),
-    form_name: str = Form("unnamed_form")
+    form_name: str = Form(...)
 ):
-    # Validate the image
-    if not image.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="File must be an image")
-
     try:
+        # Read the uploaded image
         image_content = await image.read()
+        
+        # Encode image to base64
         base64_image = encode_image(image_content)
-        form_template = extract_form_data(base64_image)
-
-        # Save as a form template (for reuse)
-        sanitized_name = "".join([c if c.isalnum() else "_" for c in form_template["name"]])
-        file_path = os.path.join(FORMS_DIR, f"{sanitized_name}.json")
-
-        with open(file_path, "w") as f:
-            json.dump(form_template, f, indent=2)
-
-        return form_template
-
-    except Exception as e:
-        import traceback
-        print(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"Error processing form: {str(e)}")
-
-
-@app.post("/save-form-template")
-async def save_form_template(form: FormTemplate):
-    try:
-        sanitized_name = "".join([c if c.isalnum() else "_" for c in form.name])
-        file_path = os.path.join(FORMS_DIR, f"{sanitized_name}.json")
         
-        with open(file_path, "w") as f:
-            json.dump(form.dict(), f, indent=2)
+        # Extract form data using OpenAI
+        form_data = extract_form_data(base64_image)
         
-        return {"message": f"Form template '{form.name}' saved successfully", "path": file_path}
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error saving form template: {str(e)}")
-
-@app.get("/list-form-templates")
-async def list_form_templates():
-    try:
-        templates = []
-        for filename in os.listdir(FORMS_DIR):
-            if filename.endswith(".json"):
-                file_path = os.path.join(FORMS_DIR, filename)
-                with open(file_path, "r") as f:
-                    form_data = json.load(f)
-                    templates.append({
-                        "name": form_data.get("name", filename[:-5]),
-                        "filename": filename
-                    })
-        
-        return {"templates": templates}
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error listing form templates: {str(e)}")
-
-@app.get("/form-template/{name}")
-async def get_form_template(name: str):
-    try:
-        sanitized_name = "".join([c if c.isalnum() else "_" for c in name])
-        file_path = os.path.join(FORMS_DIR, f"{sanitized_name}.json")
-        
-        if not os.path.exists(file_path):
-            raise HTTPException(status_code=404, detail=f"Form template '{name}' not found")
-        
-        with open(file_path, "r") as f:
-            form_data = json.load(f)
-        
+        # Update the form name if provided
+        if form_name and form_name != "auto_form":
+            form_data["name"] = form_name
+            
         return form_data
-    
-    except HTTPException:
-        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error retrieving form template: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
